@@ -5,16 +5,16 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body style="margin:0; padding:0; background:#f4f6fa; min-height:100vh;">
-    <h1 style="text-align:center; margin-top:30px; color:#2c3e50; font-size:2.2em;">Welcome to GreenGrowth CPAs AI Tax Agent</h1>
+    <h1 style="text-align:center; margin-top:30px; color:#2c3e50; font-size:2.2em;">Welcome to GreenGrowth CPAs Tax Agent</h1>
     <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:80vh;">
         <div class="container" style="margin:0 auto; text-align:center;">
-            <h2 style="margin-bottom:18px;">Upload W-2 and 1099 Form</h2>
+            <h2 style="margin-bottom:18px;">Please Upload Your W-2 and 1099 Forms</h2>
             <input type="file" id="pdfInput" multiple style="margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;">
             <button onclick="upload()" style="margin-bottom:18px;">Upload</button>
             <div id="output" style="margin-top:18px;"></div>
         </div>
         <div class="chat-container" style="max-width:1000px;margin:30px auto 0 auto;padding:20px;background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08); text-align:left;">
-            <h3 style="margin-top:0; text-align:center;">Questions? GGCPAs AI Agent is here to help!</h3>
+            <h3 style="margin-top:0; text-align:center;">Questions? GGCPAs Agent is here to help!</h3>
             <div id="chat-history" style="border:1px solid #ccc; padding:10px; height:220px; overflow-y:auto; background:#f9f9f9; border-radius:6px; font-size:15px; margin-bottom:10px;">
                 <div id="chat-placeholder" style="color:#aaa;">No messages yet. Ask a question about your W2 or 1099.</div>
             </div>
@@ -146,7 +146,7 @@
                             .then(res => res.json())
                             .then(data => {
                                 if (data.html_1040) {
-                                    document.getElementById('taxResult').innerHTML = data.html_1040 + `<div style='text-align:center; margin-top:18px;'><button id='downloadHtmlBtn' style='padding:10px 22px; font-size:16px; background:#007bff; color:#fff; border:none; border-radius:6px;'>Download Form 1040 as HTML</button></div>`;
+                                    document.getElementById('taxResult').innerHTML = data.html_1040 + `<div style='text-align:center; margin-top:18px;'><button id='downloadHtmlBtn' style='padding:10px 22px; font-size:16px; background:#007bff; color:#fff; border:none; border-radius:6px;'>Download Your Form 1040</button></div>`;
                                     setTimeout(() => {
                                         const btn = document.getElementById('downloadHtmlBtn');
                                         if (btn) {
