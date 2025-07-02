@@ -12,7 +12,10 @@ app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-OPENROUTER_API_KEY = "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"
+ 
+
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL = "mistralai/mistral-7b-instruct"
 HEADERS = {
     "Authorization": f"Bearer {OPENROUTER_API_KEY}",
