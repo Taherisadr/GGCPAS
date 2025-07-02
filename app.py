@@ -285,7 +285,16 @@ def calculate():
     summary, html_1040 = compute_tax_1040(merged_data, extra_fields)
     return jsonify({'summary': summary, 'html_1040': html_1040})
 
+'''
 if __name__ == '__main__':
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     print('Starting Flask app...')
     app.run(debug=True, port=8080)
+'''
+
+
+if __name__ == '__main__':
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    port = int(os.environ.get("PORT", 8080))
+    print(f'Starting Flask app on port {port}...')
+    app.run(host='0.0.0.0', port=port)
