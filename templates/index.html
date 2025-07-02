@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tax Form Extractor</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body style="margin:0; padding:0; background:#f4f6fa; min-height:100vh;">
+    <h1 style="text-align:center; margin-top:30px; color:#2c3e50; font-size:2.2em;">Welcome to GreenGrowth CPAs AI Tax Agent</h1>
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:80vh;">
+        <div class="container" style="margin:0 auto; text-align:center;">
+            <h2 style="margin-bottom:18px;">Upload W-2 or 1099 Form</h2>
+            <input type="file" id="pdfInput" multiple style="margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;">
+            <button onclick="upload()" style="margin-bottom:18px;">Upload</button>
+            <div id="output" style="margin-top:18px;"></div>
+        </div>
+        <div class="chat-container" style="max-width:1000px;margin:30px auto 0 auto;padding:20px;background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08); text-align:left;">
+            <h3 style="margin-top:0; text-align:center;">Ask the Tax Chatbot</h3>
+            <div id="chat-history" style="border:1px solid #ccc; padding:10px; height:220px; overflow-y:auto; background:#f9f9f9; border-radius:6px; font-size:15px; margin-bottom:10px;">
+                <div id="chat-placeholder" style="color:#aaa;">No messages yet. Ask a question about your W2 or 1099.</div>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <input type="text" id="chatInput" placeholder="Type your question..." style="flex:1; padding:10px; font-size:15px; border-radius:6px; border:1px solid #ccc;" onkeydown="if(event.key==='Enter'){sendChat();return false;}">
+                <button onclick="sendChat()" style="padding:10px 18px; font-size:15px; border-radius:6px; background:#007bff; color:#fff; border:none;">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Simple markdown renderer (marked.js CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <script>
+        let extractedData = null;
+        let chatMessages = [];
+
+        // Restore chat history from sessionStorage if available
+        if (sessionStorage.getItem('chatMessages')) {
+            try {
+                chatMessages = JSON.parse(sessionStorage.getItem('chatMessages'));
+            } catch (e) { chatMessages = []; }
+        }
+
+        window.onload = function() {
+            renderChatHistory();
+        };
+
+        function upload() {
+            // Reset chat history on new upload
+            chatMessages = [];
+            saveChatHistory();
+            renderChatHistory();
+            const files = document.getElementById('pdfInput').files;
+            if (files.length !== 2) {
+                document.getElementById('output').innerText = "Please select your W2 and 1099 PDF files.";
+                return;
+            }
+            const formData = new FormData();
+            formData.append('pdf1', files[0]);
+            formData.append('pdf2', files[1]);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            }).then(res => res.json()).then(data => {
+                extractedData = data;
+                // Merge fields from both docs
+                let merged = {};
+                for (const key in data.doc1) {
+                    merged[key] = data.doc1[key];
+                }
+                for (const key in data.doc2) {
+                    if (merged[key] && merged[key] !== data.doc2[key]) {
+                        merged[key] += ' / ' + data.doc2[key];
+                    } else {
+                        merged[key] = data.doc2[key];
+                    }
+                }
+                let html = "<h3>Merged Extracted Data:</h3><ul style='text-align:left; display:inline-block;'>";
+                for (const key in merged) {
+                    html += `<li><strong>${key}:</strong> ${merged[key]}</li>`;
+                }
+                html += "</ul>";
+                // Add Filing Status dropdown below merged data
+                html += `<div style='margin-top:24px; text-align:left;'>
+                  <label for='filingStatus'><strong>Filing Status?</strong></label><br>
+                  <select id='filingStatus' style='margin-top:6px; padding:6px 12px; font-size:15px;'>
+                    <option value='Single'>Single</option>
+                    <option value='Married Filing Jointly'>Married Filing Jointly</option>
+                    <option value='Married Filing Separate'>Married Filing Separate</option>
+                  </select>
+                </div>`;
+                // Add more fields
+                html += `<div style='margin-top:18px; text-align:left;'>
+                  <label for='dependents'><strong>Dependents:</strong></label><br>
+                  <input type='number' id='dependents' min='0' style='margin-top:6px; padding:6px 12px; font-size:15px; width:120px;' placeholder='0'>
+                </div>`;
+                html += `<div style='margin-top:18px; text-align:left;'>
+                  <label for='stateTaxes'><strong>State/Local Taxes</strong><br><span style='font-weight:normal;'>Withholding from state, if applicable.</span></label><br>
+                  <input type='text' id='stateTaxes' style='margin-top:6px; padding:6px 12px; font-size:15px; width:300px;' placeholder='e.g. $500'>
+                </div>`;
+                html += `<div style='margin-top:18px; text-align:left;'>
+                  <label for='otherIncome'><strong>Other Income</strong><br><span style='font-weight:normal;'>Interest, dividends, crypto, unemployment, etc.</span></label><br>
+                  <input type='text' id='otherIncome' style='margin-top:6px; padding:6px 12px; font-size:15px; width:300px;' placeholder='e.g. $200 dividends'>
+                </div>`;
+                html += `<div style='margin-top:18px; text-align:left;'>
+                  <label for='adjustments'><strong>Adjustments and Deductions</strong><br><span style='font-weight:normal;'>Student loan interest, IRA contributions, etc.</span></label><br>
+                  <input type='text' id='adjustments' style='margin-top:6px; padding:6px 12px; font-size:15px; width:300px;' placeholder='e.g. $1000 IRA'>
+                </div>`;
+                html += `<div style='margin-top:18px; text-align:left;'>
+                  <label for='credits'><strong>Credits</strong><br><span style='font-weight:normal;'>Child tax credit, earned income credit, etc.</span></label><br>
+                  <input type='text' id='credits' style='margin-top:6px; padding:6px 12px; font-size:15px; width:300px;' placeholder='e.g. $2000 child tax credit'>
+                </div>`;
+                // After the extra fields, add the button and result area
+                html += `<div style='margin-top:24px; text-align:left;'><button id='calcBtn' style='padding:10px 22px; font-size:16px; background:#28a745; color:#fff; border:none; border-radius:6px;'>Calculate Tax Return</button></div>`;
+                html += `<div id='taxResult' style='margin-top:30px;'></div>`;
+                document.getElementById('output').innerHTML = html;
+
+                // Add event listener for the button
+                setTimeout(() => {
+                    const btn = document.getElementById('calcBtn');
+                    if (btn) {
+                        btn.onclick = function() {
+                            // Gather merged data
+                            let merged = {};
+                            for (const key in extractedData.doc1) merged[key] = extractedData.doc1[key];
+                            for (const key in extractedData.doc2) {
+                                if (merged[key] && merged[key] !== extractedData.doc2[key]) {
+                                    merged[key] += ' / ' + extractedData.doc2[key];
+                                } else {
+                                    merged[key] = extractedData.doc2[key];
+                                }
+                            }
+                            // Gather extra fields
+                            const extraFields = {
+                                filing_status: document.getElementById('filingStatus') ? document.getElementById('filingStatus').value : '',
+                                dependents: document.getElementById('dependents') ? document.getElementById('dependents').value : '',
+                                state_taxes: document.getElementById('stateTaxes') ? document.getElementById('stateTaxes').value : '',
+                                other_income: document.getElementById('otherIncome') ? document.getElementById('otherIncome').value : '',
+                                adjustments: document.getElementById('adjustments') ? document.getElementById('adjustments').value : '',
+                                credits: document.getElementById('credits') ? document.getElementById('credits').value : ''
+                            };
+                            fetch('/calculate', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ merged_data: merged, extra_fields: extraFields })
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.html_1040) {
+                                    document.getElementById('taxResult').innerHTML = data.html_1040 + `<div style='text-align:center; margin-top:18px;'><button id='downloadHtmlBtn' style='padding:10px 22px; font-size:16px; background:#007bff; color:#fff; border:none; border-radius:6px;'>Download Form 1040 as HTML</button></div>`;
+                                    setTimeout(() => {
+                                        const btn = document.getElementById('downloadHtmlBtn');
+                                        if (btn) {
+                                            btn.onclick = function() {
+                                                const blob = new Blob([data.html_1040], { type: 'text/html' });
+                                                const url = window.URL.createObjectURL(blob);
+                                                const a = document.createElement('a');
+                                                a.href = url;
+                                                a.download = 'Form1040.html';
+                                                document.body.appendChild(a);
+                                                a.click();
+                                                a.remove();
+                                                window.URL.revokeObjectURL(url);
+                                            }
+                                        }
+                                    }, 100);
+                                } else {
+                                    document.getElementById('taxResult').innerHTML = '<div style="color:red;">Error calculating tax return.</div>';
+                                }
+                            })
+                            .catch(() => {
+                                document.getElementById('taxResult').innerHTML = '<div style="color:red;">Error calculating tax return.</div>';
+                            });
+                        }
+                    }
+                }, 100);
+            }).catch(err => {
+                document.getElementById('output').innerText = "Error uploading files.";
+            });
+        }
+
+        function sendChat() {
+            const input = document.getElementById('chatInput');
+            const question = input.value.trim();
+            if (!question) return;
+            if (!extractedData) {
+                alert('Please upload your W2 and 1099 PDFs first.');
+                return;
+            }
+            // Gather extra fields
+            const extraFields = {
+                filing_status: document.getElementById('filingStatus') ? document.getElementById('filingStatus').value : '',
+                dependents: document.getElementById('dependents') ? document.getElementById('dependents').value : '',
+                state_taxes: document.getElementById('stateTaxes') ? document.getElementById('stateTaxes').value : '',
+                other_income: document.getElementById('otherIncome') ? document.getElementById('otherIncome').value : '',
+                adjustments: document.getElementById('adjustments') ? document.getElementById('adjustments').value : '',
+                credits: document.getElementById('credits') ? document.getElementById('credits').value : ''
+            };
+            // Add user message to chat history
+            chatMessages.push({ sender: 'user', text: question });
+            saveChatHistory();
+            renderChatHistory();
+            input.value = '';
+            input.focus();
+            // Find Form 1040 summary if available
+            let form1040 = {};
+            const taxResultDiv = document.getElementById('taxResult');
+            if (taxResultDiv && taxResultDiv.innerText && taxResultDiv.innerText.includes('Form 1040')) {
+                // Try to extract summary fields from the last calculation (if any)
+                // For now, just send the HTML as a string for LLM context
+                form1040 = { html: taxResultDiv.innerHTML };
+            }
+            fetch('/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    question: question,
+                    extracted_data: extractedData,
+                    extra_fields: extraFields,
+                    form_1040: form1040
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.answer) {
+                    chatMessages.push({ sender: 'ai', text: data.answer });
+                } else {
+                    chatMessages.push({ sender: 'ai', text: `Error: ${escapeHtml(data.error || 'Unknown error')}` });
+                }
+                saveChatHistory();
+                renderChatHistory();
+            })
+            .catch(err => {
+                chatMessages.push({ sender: 'ai', text: 'Error sending message.' });
+                saveChatHistory();
+                renderChatHistory();
+            });
+        }
+
+        function renderChatHistory() {
+            const chatHistory = document.getElementById('chat-history');
+            const chatPlaceholder = document.getElementById('chat-placeholder');
+            chatHistory.innerHTML = '';
+            if (chatMessages.length === 0) {
+                if (chatPlaceholder) chatPlaceholder.style.display = '';
+            } else {
+                if (chatPlaceholder) chatPlaceholder.style.display = 'none';
+                for (const msg of chatMessages) {
+                    chatHistory.innerHTML += renderMessage(msg.sender, msg.text);
+                }
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+        }
+
+        function saveChatHistory() {
+            sessionStorage.setItem('chatMessages', JSON.stringify(chatMessages));
+        }
+
+        function renderMessage(sender, text) {
+            if (sender === 'user') {
+                return `<div style='display:flex;align-items:flex-start;margin-bottom:10px;'><img src='https://api.dicebear.com/7.x/personas/svg?seed=User' alt='User' style='width:32px;height:32px;border-radius:50%;margin-right:8px;border:1.5px solid #007bff;'><div><b style='color:#007bff;'>You:</b> ${escapeHtml(text)}</div></div>`;
+            } else {
+                // Render markdown for AI
+                return `<div style='display:flex;align-items:flex-start;margin-bottom:10px;'><img src='https://api.dicebear.com/7.x/bottts/svg?seed=AI' alt='AI' style='width:32px;height:32px;border-radius:50%;margin-right:8px;border:1.5px solid #28a745;'><div><b style='color:#28a745;'>AI:</b> <span style='display:block;'>${marked.parse(text)}</span></div></div>`;
+            }
+        }
+
+        function escapeHtml(text) {
+            var map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+        }
+    </script>
+</body>
+</html>

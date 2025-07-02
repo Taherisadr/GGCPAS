@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tax Form Extractor</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h2>Upload W-2 or 1099 Form</h2>
+        <input type="file" id="pdfInput">
+        <button onclick="upload()">Upload</button>
+        <div id="output"></div>
+    </div>
+
+    <script>
+        function upload() {
+            const file = document.getElementById('pdfInput').files[0];
+            const formData = new FormData();
+            formData.append('pdf', file);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            }).then(res => res.json()).then(data => {
+                let html = "<h3>Extracted Data:</h3><ul>";
+                for (const key in data) {
+                    html += `<li><strong>${key}:</strong> ${data[key]}</li>`;
+                }
+                html += "</ul>";
+                document.getElementById('output').innerHTML = html;
+            }).catch(err => {
+                document.getElementById('output').innerText = "Error uploading file.";
+            });
+        }
+    </script>
+</body>
+</html>
